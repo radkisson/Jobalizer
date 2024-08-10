@@ -1,0 +1,52 @@
+<!-- app/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Submit job postings easily and efficiently.">
+    <title>Submit Job Posting | Job Posting Input</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.min.js"></script>
+    <script type="text/javascript">
+        var socket = io();
+        socket.on('job_posting_processed', function(data) {
+            alert(data.message);
+        });
+    </script>
+    </head>
+    <body class="bg-gray-100">
+    <!-- Topbar -->
+    <header class="bg-indigo-600 text-white py-4 shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center">
+            <h1 class="text-xl font-bold">Job Posting Portal</h1>
+            <nav>
+                <a href="/" class="text-white hover:text-gray-200">Home</a>
+                <a href="/login" class="text-white hover:text-gray-200">Login</a>
+                <a href="/register" class="text-white hover:text-gray-200">Register</a>
+            </nav>
+        </div>
+    </header>
+    
+    <main class="max-w-lg mx-auto p-5 bg-white shadow-md rounded-lg mt-10">
+        <h1 class="text-2xl font-semibold text-center text-gray-800">Job Posting Input Page</h1>
+        <section class="mt-6">
+            <form action="/input" method="POST" class="space-y-4">
+                <textarea name="job_posting" rows="10" placeholder="Enter job posting details here..." required aria-label="Job Posting Details" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+                <button type="submit" class="w-full py-2 px-4 font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition duration-200">Submit Job Posting</button>
+            </form>
+        </section>
+        <section class="mt-4">
+            {% with messages = get_flashed_messages() %}
+                {% if messages %}
+                    <ul class="bg-indigo-100 border border-indigo-200 text-indigo-800 rounded-lg p-4 space-y-2">
+                        {% for message in messages %}
+                            <li>{{ message }}</li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+            {% endwith %}
+        </section>
+    </main>
+</body>
+</html>
