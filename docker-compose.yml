@@ -1,28 +1,51 @@
-version: '3.7'
-
 services:
   jobalizer:
-    build:
-      context: .
-      args:
-        GENERATE_REQUIREMENTS: ${GENERATE_REQUIREMENTS:-false}
-    image: jobalizer
+    image: jobalizer:latest
+    container_name: jobalizer
     ports:
       - "5000:5000"
-    volumes:
-      - ./app:/app
+    env_file: 
+      - .env
     environment:
-      FLASK_APP: main
-      FLASK_ENV: ${FLASK_ENV:-development}
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      FLASK_SECRET_KEY: ${FLASK_SECRET_KEY}
+      FLASK_APP: "app:create_app()"
+      FLASK_ENV: "${FLASK_ENV:-development}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-your_openai_api_key}"
+      FLASK_SECRET_KEY: "${FLASK_SECRET_KEY:-your_secret_key}"
+      CELERY_BROKER_URL: "redis://redis:6379/0"
+      CELERY_RESULT_BACKEND: "redis://redis:6379/0"
+      SOCKETIO_MESSAGE_QUEUE: "redis://redis:6379/0"
+    restart: unless-stopped
+    volumes:
+      - .:/app  # Map the host directory to the container directory for live code updates
+    depends_on:
+      - redis
+      - celery_worker
+
+  redis:
+    image: redis:alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+
+  celery_worker:
+    image: jobalizer:latest
+    container_name: celery_worker
+    command: celery -A app.services.task_queue.celery worker --loglevel=info
     env_file:
       - .env
+    environment:
+      CELERY_BROKER_URL: "redis://redis:6379/0"
+      CELERY_RESULT_BACKEND: "redis://redis:6379/0"
+      SOCKETIO_MESSAGE_QUEUE: "redis://redis:6379/0"
+    volumes:
+      - .:/app
+    depends_on:
+      - redis
     restart: unless-stopped
-    # Healthcheck to ensure the container is running properly
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/healthcheck"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
+
+volumes:
+  redis-data:
+    driver: local

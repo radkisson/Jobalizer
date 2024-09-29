@@ -1,13 +1,13 @@
 # Exclude Git files
 .git
 .gitignore
+.gitattributes
 
 # Python cache
 __pycache__/
 *.py[cod]
 
 # Environment and build files
-.env
 *.log
 
 # Docker files
@@ -17,3 +17,11 @@ docker-compose.yml
 # Others
 node_modules/
 tmp/
+.DS_Store
+
+# Exclude build script
+build_and_install.sh
+
+# Exclude documentation and license files
+LICENSE
+README.md

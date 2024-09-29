@@ -7,7 +7,7 @@ import os
 from flask import Flask, request, redirect, url_for, flash, render_template
 from flask_socketio import SocketIO, emit
 from config import *
-from database import get_db_connection, init_db, init_app
+from app.models.database import get_db_connection, init_db, init_app
 
 app = Flask(__name__, template_folder=os.path.join('web', 'templates'))
 app.config.from_object(Config)

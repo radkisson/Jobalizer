@@ -13,13 +13,13 @@ set -euo pipefail  # Exit on error, undefined variable, or pipe failure
 
 # Variables
 IMAGE_NAME="jobalizer"
-TEMP_CONTAINER_NAME="jobalizer_temp"
-REQUIREMENTS_FILE="requirements.txt"
 DEFAULT_IMAGE_TAG="latest"
 
 # Initialize variables
-VERBOSE=false
-HELP=false
+VERBOSE=true
+
+# Prompt to generate requirements.txt
+read -p "Do you want to generate a new requirements.txt (GENERATE_REQUIREMENTS=true)? [y/N]: " gen_req && [[ "$gen_req" =~ ^[yY]$ ]] && GENERATE_REQUIREMENTS=true || GENERATE_REQUIREMENTS=false
 
 # Function to display usage information
 usage() {
@@ -27,7 +27,7 @@ usage() {
   echo ""
   echo "Options:"
   echo "  -v          Enable verbose mode"
-  echo "  -h          Show help message"
+  echo "  -h          Show this help message"
   exit 0
 }
 
@@ -101,6 +101,9 @@ while getopts "vh" opt; do
   esac
 done
 
+# Output Docker version
+log "Docker Version: $(docker --version)"
+
 # Check for required commands (docker)
 if ! command_exists docker; then
   echo "Error: Docker is not installed. Please install Docker and try again."
@@ -116,57 +119,63 @@ else
   echo "Warning: .env file not found. Using default environment variables."
 fi
 
-# Set GENERATE_REQUIREMENTS with default if not set
-GENERATE_REQUIREMENTS="${GENERATE_REQUIREMENTS:-false}"
-
 # Set IMAGE_TAG with default or provided value
 IMAGE_TAG="${IMAGE_TAG:-$DEFAULT_IMAGE_TAG}"
 
-# Optionally, generate a unique tag using timestamp or Git hash
-# Uncomment one of the following lines if desired:
-# IMAGE_TAG=$(date +%Y%m%d%H%M%S)
-# IMAGE_TAG=$(git rev-parse --short HEAD 2>/dev/null || echo "$DEFAULT_IMAGE_TAG")
+# Function for conditional cleanup prompts
+cleanup_prompt() {
+  local prompt=$1
+  local action=$2
+  if [ "$VERBOSE" = true ]; then
+    $action
+  else
+    read -r -p "$prompt [y/N]: " choice
+    case "$choice" in
+      [yY][eE][sS]|[yY])
+        $action
+        ;;
+      *)
+        echo "Skipping $prompt."
+        ;;
+    esac
+  fi
+}
 
-log "Building Docker image: $IMAGE_NAME:$IMAGE_TAG with GENERATE_REQUIREMENTS=$GENERATE_REQUIREMENTS"
-
-# Build the Docker image with retry mechanism and custom network settings
+# Build the Docker image
+log "Building Docker image: $IMAGE_NAME:$IMAGE_TAG"
 retry 3 docker build \
-  --network=host \
-  --build-arg GENERATE_REQUIREMENTS="$GENERATE_REQUIREMENTS" \
   -t "$IMAGE_NAME:$IMAGE_TAG" \
   .
 
 echo "Docker image '$IMAGE_NAME:$IMAGE_TAG' built successfully."
 
+# If GENERATE_REQUIREMENTS is true, generate requirements.txt
+if [ "$GENERATE_REQUIREMENTS" = true ]; then
+  log "Generating requirements.txt from the Docker image..."
+  
+  # Create a temporary container
+  temp_container=$(docker create "$IMAGE_NAME:$IMAGE_TAG")
+  
+  # Copy requirements.txt from the container to the host
+  docker cp "$temp_container:/app/requirements.txt" ./requirements.txt
+  
+  echo "Updated requirements.txt has been copied to the host."
+  
+  # Remove the temporary container
+  docker rm "$temp_container"
+fi
+
 # Prompt to clean up dangling images
-read -r -p "Do you want to clean up dangling Docker images? [y/N]: " cleanup_choice
-case "$cleanup_choice" in
-  [yY][eE][sS]|[yY])
-    cleanup_images
-    echo "Dangling Docker images cleaned up."
-    ;;
-  *)
-    echo "Skipping cleanup of dangling Docker images."
-    ;;
-esac
+cleanup_prompt "Do you want to clean up dangling Docker images?" cleanup_images
 
 # Optional: Prompt to clean up unused Docker networks, volumes, and containers
-read -r -p "Do you want to clean up unused Docker networks, volumes, and containers? [y/N]: " resource_cleanup_choice
-case "$resource_cleanup_choice" in
-  [yY][eE][sS]|[yY])
-    cleanup_docker_resources
-    echo "Unused Docker resources cleaned up."
-    ;;
-  *)
-    echo "Skipping cleanup of Docker resources."
-    ;;
-esac
+cleanup_prompt "Do you want to clean up unused Docker networks, volumes, and containers?" cleanup_docker_resources
 
 # Provide instructions to run the container
 echo ""
 echo "You can now run the application with the following command:"
 echo "  docker run -p 5000:5000 \\"
-echo "    -e FLASK_APP=main \\"
+echo "    -e FLASK_APP=app \\"
 echo "    -e FLASK_ENV=${FLASK_ENV:-development} \\"
 echo "    -e OPENAI_API_KEY=${OPENAI_API_KEY:-your_openai_api_key} \\"
 echo "    -e FLASK_SECRET_KEY=${FLASK_SECRET_KEY:-your_secret_key} \\"
