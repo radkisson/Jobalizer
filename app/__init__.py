@@ -3,15 +3,16 @@
 import logging
 from flask import Flask
 from flask_migrate import Migrate
-from .models.db import db  # Import db from its module
-from .socketio import socketio  # Import socketio from its module
+from celery import Celery  # Import Celery here
+from .models.db import db
+from .socketio import socketio
 from .config import get_config
 from .routes.main_routes import main_bp
-from .services.task_queue import init_celery, celery  # Import the initialized Celery app
 from .utils.logger import setup_logging
 
 # Initialize Flask-Migrate
 migrate = Migrate()
+celery = Celery(__name__)  # Initialize Celery
 
 def create_app():
     """
@@ -38,17 +39,17 @@ def create_app():
         socketio.init_app(
             app,
             message_queue=app.config['SOCKETIO_MESSAGE_QUEUE'],
-            async_mode='eventlet'  # Ensure async_mode is set for Flask-SocketIO
+            async_mode='eventlet'
         )
 
         # Register Blueprints
         app.register_blueprint(main_bp)
 
         # Initialize Celery with Flask app context
-        init_celery(celery_app=celery, flask_app=app)  # Pass the initialized celery app
+        init_celery(app)
 
         # Import models to ensure they are registered with SQLAlchemy
-        from .models import database  # Adjust the import path if necessary
+        from .models import database
 
         # Log successful initialization
         app.logger.info("Flask application initialized successfully.")
@@ -60,3 +61,22 @@ def create_app():
         raise e
 
     return app
+
+def init_celery(app=None):
+    """
+    Initializes the Celery app with the Flask app context.
+    """
+    app = app or create_app()
+    celery.conf.update(app.config)
+    celery.conf.broker_connection_retry_on_startup = True
+
+    # Define the Celery Task Base Class
+    class ContextTask(celery.Task):
+        def __call__(self, *args, **kwargs):
+            with app.app_context():
+                return self.run(*args, **kwargs)
+
+    celery.Task = ContextTask
+
+    # Import tasks here to register them with Celery
+    from .services import task_queue  # Import tasks after Celery is configured

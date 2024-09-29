@@ -1,10 +1,12 @@
+# docker-compose.yml
+
 services:
   jobalizer:
     image: jobalizer:latest
     container_name: jobalizer
     ports:
       - "5000:5000"
-    env_file: 
+    env_file:
       - .env
     environment:
       FLASK_APP: "app:create_app()"
@@ -29,11 +31,16 @@ services:
     volumes:
       - redis-data:/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   celery_worker:
     image: jobalizer:latest
     container_name: celery_worker
-    command: celery -A app.services.task_queue.celery worker --loglevel=info
+    command: celery -A app.celery worker --loglevel=info
     env_file:
       - .env
     environment:
@@ -45,6 +52,11 @@ services:
     depends_on:
       - redis
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "celery", "-A", "app.celery", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
 volumes:
   redis-data:

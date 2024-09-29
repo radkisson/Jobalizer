@@ -1,9 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
-from ..models.db import db  # Import db from db.py
-from ..models.database import JobPosting  # Import the JobPosting model
-from ..services.openai_service import extract_fields_with_openai
-from ..services.task_queue import add_to_queue
-
+from ..models.db import db
+from ..models.database import JobPosting
 import logging
 
 main_bp = Blueprint('main', __name__)
@@ -34,6 +31,8 @@ def input_job_posting():
         flash('An error occurred while adding the job posting.')
         return redirect(url_for('main.index'))
 
+    # Import here to avoid circular import
+    from ..services.task_queue import add_to_queue
     add_to_queue(new_job_posting.id)  # Pass the job_posting_id instead of content
     flash('Job posting added to queue. Please wait for processing.')
     return redirect(url_for('main.index'))
